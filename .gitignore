@@ -1,0 +1,27 @@
+## [기본 빌드 결과물]
+bin/
+obj/
+out/
+
+## [IDE 및 툴링]
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.doccache
+
+## [환경 설정 및 비밀번호]
+appsettings.Development.json
+appsettings.Local.json
+*.secrets.json
+
+## [NuGet 패키지]
+restore.dgstat.json
+non-existent-file.txt
+
+## [OS 관련]
+.DS_Store
+Thumbs.db
+
+## [기타]
+*.log

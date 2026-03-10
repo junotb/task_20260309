@@ -1,0 +1,37 @@
+## [빌드 및 종속성]
+bin/
+obj/
+node_modules/
+.git/
+
+## [문서 및 자산]
+*.exe
+*.dll
+*.pdb
+*.so
+*.dylib
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+
+## [로그 및 임시 파일]
+logs/
+*.log
+temp/
+tmp/
+
+## [설정 및 권한]
+.env
+*.pem
+*.key
+appsettings.json
+appsettings.Development.json
+
+## [기타]
+*.csv
+*.jsonl
+*.sql
