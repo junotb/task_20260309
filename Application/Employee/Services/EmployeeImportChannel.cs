@@ -1,11 +1,11 @@
 using System.Threading.Channels;
-using task_20260309.Application.CQRS.Commands;
+using task_20260309.Application.Employee.Commands;
 
-namespace task_20260309.Application.Services;
+namespace task_20260309.Application.Employee.Services;
 
 /// <summary>
-/// Producer-Consumer 패턴용 채널.
-/// API에서 직원 데이터를 채널에 쓰고, BackgroundService에서 읽어 DB에 저장.
+/// Producer-Consumer 채널. Bounded(100), FullMode=Wait.
+/// 부수 효과: 채널 가득 찼을 때 WriteAsync는 Consumer가 읽을 때까지 대기. 요청 블로킹됨.
 /// </summary>
 public class EmployeeImportChannel
 {
