@@ -2,6 +2,8 @@
 bin/
 obj/
 out/
+publish/
+dist/    
 
 ## [IDE 및 툴링]
 .vs/

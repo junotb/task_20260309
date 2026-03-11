@@ -1,6 +1,8 @@
 ## [빌드 및 종속성]
 bin/
 obj/
+publish/
+dist/
 node_modules/
 .git/
 
