@@ -11,7 +11,6 @@ out/
 *.sln.doccache
 
 ## [환경 설정 및 비밀번호]
-appsettings.Development.json
 appsettings.Local.json
 *.secrets.json
 
@@ -23,5 +22,11 @@ non-existent-file.txt
 .DS_Store
 Thumbs.db
 
+## [SQLite]
+*.db
+*.db-shm
+*.db-wal
+
 ## [기타]
+logs/
 *.log

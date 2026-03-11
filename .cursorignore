@@ -28,10 +28,10 @@ tmp/
 .env
 *.pem
 *.key
-appsettings.json
-appsettings.Development.json
+appsettings.Local.json
+*.secrets.json
 
-## [기타]
-*.csv
-*.jsonl
-*.sql
+## [SQLite]
+*.db
+*.db-shm
+*.db-wal
