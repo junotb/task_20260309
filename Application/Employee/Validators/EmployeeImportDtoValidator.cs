@@ -1,10 +1,9 @@
 using System.Text.RegularExpressions;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
-using task_20260309.Application.CQRS.Commands;
-using task_20260309.Infrastructure.Data;
+using task_20260309.Application.Employee.Commands;
+using task_20260309.Domain.Repositories;
 
-namespace task_20260309.Application.Validators;
+namespace task_20260309.Application.Employee.Validators;
 
 public class EmployeeImportDtoValidator : AbstractValidator<EmployeeImportDto>
 {
@@ -16,7 +15,7 @@ public class EmployeeImportDtoValidator : AbstractValidator<EmployeeImportDto>
         @"^[\d\-\s+()\.]+$",
         RegexOptions.Compiled);
 
-    public EmployeeImportDtoValidator(AppDbContext db)
+    public EmployeeImportDtoValidator(IEmployeeRepository repository)
     {
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("이름은 필수입니다.")
@@ -26,7 +25,7 @@ public class EmployeeImportDtoValidator : AbstractValidator<EmployeeImportDto>
             .NotEmpty().WithMessage("이메일은 필수입니다.")
             .Must(BeValidEmail).WithMessage("올바른 이메일 형식이 아닙니다.")
             .MaximumLength(320)
-            .MustAsync(async (dto, email, ct) => !await db.Employees.AnyAsync(e => e.Email == (email ?? "").Trim().ToLowerInvariant(), ct))
+            .MustAsync(async (dto, email, ct) => !await repository.ExistsByEmailAsync((email ?? "").Trim().ToLowerInvariant(), ct))
             .WithMessage("이미 등록된 이메일입니다.");
 
         RuleFor(x => x.Tel)

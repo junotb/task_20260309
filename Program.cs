@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Formatting.Compact;
 using task_20260309.Api;
-using task_20260309.Application.Services;
-using task_20260309.Application.Validators;
+using task_20260309.Application.Employee.Parsers;
+using task_20260309.Application.Employee.Services;
+using task_20260309.Application.Employee.Validators;
+using task_20260309.Domain.Repositories;
 using task_20260309.Infrastructure.Data;
 
 // logs 폴더 자동 생성 (실행 디렉터리 기준)
@@ -13,10 +15,11 @@ Directory.CreateDirectory(logsDir);
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Serilog: CompactJsonFormatter (Seq 등 분석기 업로드용), 매일 Rolling
+// Serilog: 콘솔 출력 + CompactJsonFormatter (Seq 등 분석기 업로드용), 매일 Rolling
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
+    .WriteTo.Console()
     .WriteTo.File(
         new CompactJsonFormatter(),
         path: Path.Combine(logsDir, "log-.json"),
@@ -26,9 +29,12 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db"));
 
+// Repository
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+
 // CQRS Handlers
-builder.Services.AddScoped<task_20260309.Application.CQRS.Queries.GetEmployeeListQueryHandler>();
-builder.Services.AddScoped<task_20260309.Application.CQRS.Queries.GetEmployeeByNameQueryHandler>();
+builder.Services.AddScoped<task_20260309.Application.Employee.Queries.GetEmployeeListQueryHandler>();
+builder.Services.AddScoped<task_20260309.Application.Employee.Queries.GetEmployeeByNameQueryHandler>();
 
 // Producer-Consumer Channel
 builder.Services.AddSingleton<EmployeeImportChannel>();
@@ -36,9 +42,15 @@ builder.Services.AddHostedService<EmployeeImportBackgroundService>();
 
 // FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<EmployeeImportDtoValidator>();
+builder.Services.AddScoped<IEmployeeParser, EmployeeImportParser>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, "task_20260309.xml");
+    if (File.Exists(xmlPath))
+        options.IncludeXmlComments(xmlPath);
+});
 
 var app = builder.Build();
 
@@ -54,8 +66,11 @@ app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapEmployeeEndpoints();
+app.MapFallbackToFile("index.html");
 
 try
 {
