@@ -14,9 +14,18 @@ public class EmployeeImportChannel
         {
             FullMode = BoundedChannelFullMode.Wait
         });
+    private readonly ILogger<EmployeeImportChannel> _logger;
+
+    public EmployeeImportChannel(ILogger<EmployeeImportChannel> logger)
+    {
+        _logger = logger;
+    }
 
     public ValueTask WriteAsync(AddEmployeesCommand command, CancellationToken ct = default)
-        => _channel.Writer.WriteAsync(command, ct);
+    {
+        _logger.LogInformation("Import 채널에 쓰기, EmployeeCount={EmployeeCount}", command.Employees.Count);
+        return _channel.Writer.WriteAsync(command, ct);
+    }
 
     public IAsyncEnumerable<AddEmployeesCommand> ReadAllAsync(CancellationToken ct = default)
         => _channel.Reader.ReadAllAsync(ct);

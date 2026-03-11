@@ -27,20 +27,33 @@ public class EmployeeImportBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("직원 Import Consumer 시작, 채널 대기 중");
         await foreach (var command in _channel.ReadAllAsync(stoppingToken))
         {
+            var batchId = Guid.NewGuid();
             try
             {
-                await ProcessCommandAsync(command, stoppingToken);
+                _logger.LogInformation(
+                    "Command 시작, CommandName={CommandName}, BatchId={BatchId}, EmployeeCount={EmployeeCount}",
+                    nameof(AddEmployeesCommand), batchId, command.Employees.Count);
+                _logger.LogInformation(
+                    "파싱 성공(배치 수신), BatchId={BatchId}, EmployeeCount={EmployeeCount}",
+                    batchId, command.Employees.Count);
+                await ProcessCommandAsync(command, batchId, stoppingToken);
+                _logger.LogInformation(
+                    "Command 완료, CommandName={CommandName}, BatchId={BatchId}",
+                    nameof(AddEmployeesCommand), batchId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Employee import 처리 중 오류 발생");
+                _logger.LogError(ex,
+                    "Command 처리 실패, CommandName={CommandName}, BatchId={BatchId}, EmployeeCount={EmployeeCount}",
+                    nameof(AddEmployeesCommand), batchId, command.Employees.Count);
             }
         }
     }
 
-    private async Task ProcessCommandAsync(AddEmployeesCommand command, CancellationToken ct)
+    private async Task ProcessCommandAsync(AddEmployeesCommand command, Guid batchId, CancellationToken ct)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -55,18 +68,29 @@ public class EmployeeImportBackgroundService : BackgroundService
             })
             .ToList();
 
+        var addedCount = 0;
+        var skippedCount = 0;
         foreach (var emp in entities)
         {
             var exists = await db.Employees.AnyAsync(x => x.Email == emp.Email, ct);
             if (exists)
             {
-                _logger.LogWarning("이메일 중복 건너뜀: {Email}", emp.Email);
+                _logger.LogWarning(
+                    "DB 저장 건너뜀(이메일 중복), BatchId={BatchId}, EmployeeEmail={EmployeeEmail}",
+                    batchId, emp.Email);
+                skippedCount++;
                 continue;
             }
             db.Employees.Add(emp);
+            _logger.LogDebug(
+                "DB 저장 대기, BatchId={BatchId}, EmployeeEmail={EmployeeEmail}",
+                batchId, emp.Email);
+            addedCount++;
         }
 
         await db.SaveChangesAsync(ct);
-        _logger.LogInformation("직원 {Count}명 추가 완료", entities.Count);
+        _logger.LogInformation(
+            "DB 저장 완료, BatchId={BatchId}, AddedCount={AddedCount}, SkippedCount={SkippedCount}, TotalCount={TotalCount}",
+            batchId, addedCount, skippedCount, entities.Count);
     }
 }
