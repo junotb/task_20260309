@@ -1,5 +1,6 @@
 using task_20260309.Application.Employee.Commands;
 using task_20260309.Domain.Repositories;
+using task_20260309.Domain.ValueObjects;
 using EmployeeEntity = task_20260309.Domain.Entities.Employee;
 
 namespace task_20260309.Application.Employee.Services;
@@ -63,13 +64,13 @@ public class EmployeeImportBackgroundService : BackgroundService
 
         foreach (var dto in command.Employees)
         {
-            // DB에는 소문자로 저장. 동시 요청 시 race로 중복 삽입 가능성 있음 → UNIQUE 제약으로 방지.
-            var email = dto.Email.Trim().ToLowerInvariant();
+            // 검증 통과된 DTO → Email.Create로 VO 생성. 동시 요청 시 race로 중복 삽입 가능성 → UNIQUE 제약 방지.
+            var email = Email.Create(dto.Email);
             if (await repository.ExistsByEmailAsync(email, ct))
             {
                 _logger.LogWarning(
                     "DB 저장 건너뜀(이메일 중복), BatchId={BatchId}, EmployeeEmail={EmployeeEmail}",
-                    batchId, email);
+                    batchId, email.Normalized);
                 skippedCount++;
                 continue;
             }
@@ -84,7 +85,7 @@ public class EmployeeImportBackgroundService : BackgroundService
             repository.Add(entity);
             _logger.LogDebug(
                 "DB 저장 대기, BatchId={BatchId}, EmployeeEmail={EmployeeEmail}",
-                batchId, email);
+                batchId, email.Normalized);
             addedCount++;
         }
 

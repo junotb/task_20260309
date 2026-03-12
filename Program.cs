@@ -7,7 +7,7 @@ using task_20260309.Application.Employee.Parsers;
 using task_20260309.Application.Employee.Services;
 using task_20260309.Application.Employee.Validators;
 using task_20260309.Domain.Repositories;
-using task_20260309.Infrastructure.Data;
+using task_20260309.Infrastructure.Persistence;
 
 // logs 폴더 자동 생성 (실행 디렉터리 기준)
 var logsDir = Path.Combine(Directory.GetCurrentDirectory(), "logs");
@@ -25,9 +25,27 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
         path: Path.Combine(logsDir, "log-.json"),
         rollingInterval: RollingInterval.Day));
 
-// DbContext
+// DbContext (설정 기반 provider 선택)
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db"));
+{
+    var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+    var connectionString = builder.Configuration["Database:ConnectionString"]
+        ?? builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Data Source=app.db";
+    switch (provider.Trim())
+    {
+        case "Npgsql":
+            options.UseNpgsql(connectionString);
+            break;
+        case "SqlServer":
+            options.UseSqlServer(connectionString);
+            break;
+        case "Sqlite":
+        default:
+            options.UseSqlite(connectionString);
+            break;
+    }
+});
 
 // Repository
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
@@ -35,6 +53,7 @@ builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 // CQRS Handlers
 builder.Services.AddScoped<task_20260309.Application.Employee.Queries.GetEmployeeListQueryHandler>();
 builder.Services.AddScoped<task_20260309.Application.Employee.Queries.GetEmployeeByNameQueryHandler>();
+builder.Services.AddScoped<task_20260309.Application.Employee.Commands.AddEmployeesCommandHandler>();
 
 // Producer-Consumer Channel
 builder.Services.AddSingleton<EmployeeImportChannel>();
@@ -42,7 +61,11 @@ builder.Services.AddHostedService<EmployeeImportBackgroundService>();
 
 // FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<EmployeeImportDtoValidator>();
-builder.Services.AddScoped<IEmployeeParser, EmployeeImportParser>();
+
+// 파서 (역할 분리, 확장자 기반 선택 가능)
+builder.Services.AddScoped<IEmployeeParser, CsvEmployeeParser>();
+builder.Services.AddScoped<IEmployeeParser, JsonEmployeeParser>();
+builder.Services.AddScoped<IEmployeeParserResolver, EmployeeParserResolver>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -61,7 +84,6 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();

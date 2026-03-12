@@ -1,4 +1,5 @@
 using task_20260309.Domain.Entities;
+using task_20260309.Domain.ValueObjects;
 
 namespace task_20260309.Domain.Repositories;
 
@@ -21,10 +22,16 @@ public interface IEmployeeRepository
     Task<Employee?> GetByNameAsync(string name, CancellationToken ct = default);
 
     /// <summary>
-    /// 이메일 존재 여부. email은 Trim·ToLowerInvariant 적용된 상태로 전달됨.
-    /// 구현: 대소문자 무시 비교.
+    /// 이름이 완전 일치하는 직원 전부. 동명이인 포함. 없으면 빈 목록.
+    /// 구현: Id 오름차순, AsNoTracking.
     /// </summary>
-    Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default);
+    Task<IReadOnlyList<Employee>> GetAllByNameAsync(string name, CancellationToken ct = default);
+
+    /// <summary>
+    /// 이메일 존재 여부. Email VO로 전달.
+    /// 구현: Normalized 기준 비교.
+    /// </summary>
+    Task<bool> ExistsByEmailAsync(Email email, CancellationToken ct = default);
 
     /// <summary>
     /// 직원 추가. SaveChangesAsync 전까지 메모리에만 반영. 동일 DbContext 스코프 내에서 호출 필수.

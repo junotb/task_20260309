@@ -3,7 +3,7 @@ namespace task_20260309.Application.Employee.Queries;
 /// <summary>
 /// 직원 목록 조회 결과. Id 오름차순 페이지네이션.
 /// </summary>
-public record GetEmployeeListResult(
+public record GetEmployeeListResponse(
     IReadOnlyList<EmployeeListItemDto> Items,
     int TotalCount,
     int Page,
