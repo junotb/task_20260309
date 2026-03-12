@@ -17,20 +17,20 @@ public class GetEmployeeByNameQueryHandler
         _logger = logger;
     }
 
-    public async Task<GetEmployeeByNameResult> HandleAsync(GetEmployeeByNameQuery query, CancellationToken ct = default)
+    public async Task<GetEmployeeByNameResponse> HandleAsync(GetEmployeeByNameQuery query, CancellationToken ct = default)
     {
         _logger.LogInformation(
             "Query 시작, QueryName={QueryName}, Name={Name}",
             nameof(GetEmployeeByNameQuery), query.Name);
 
-        var employee = await _repository.GetByNameAsync(query.Name, ct);
-        var dto = employee is not null
-            ? new EmployeeDetailDto(employee.Id, employee.Name, employee.Email, employee.Tel, employee.Joined)
-            : null;
+        var employees = await _repository.GetAllByNameAsync(query.Name, ct);
+        var dtos = employees
+            .Select(e => new EmployeeDetailDto(e.Id, e.Name, e.Email.Value, e.Tel, e.Joined))
+            .ToList();
 
         _logger.LogInformation(
-            "Query 완료, QueryName={QueryName}, Name={Name}, Found={Found}, EmployeeId={EmployeeId}",
-            nameof(GetEmployeeByNameQuery), query.Name, dto is not null, dto?.Id);
-        return new GetEmployeeByNameResult(dto);
+            "Query 완료, QueryName={QueryName}, Name={Name}, Count={Count}",
+            nameof(GetEmployeeByNameQuery), query.Name, dtos.Count);
+        return new GetEmployeeByNameResponse(dtos);
     }
 }

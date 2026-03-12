@@ -17,7 +17,7 @@ public class GetEmployeeListQueryHandler
         _logger = logger;
     }
 
-    public async Task<GetEmployeeListResult> HandleAsync(GetEmployeeListQuery query, CancellationToken ct = default)
+    public async Task<GetEmployeeListResponse> HandleAsync(GetEmployeeListQuery query, CancellationToken ct = default)
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
@@ -27,11 +27,11 @@ public class GetEmployeeListQueryHandler
 
         var (items, totalCount) = await _repository.GetPagedAsync(page, pageSize, ct);
 
-        var dtos = items.Select(e => new EmployeeListItemDto(e.Id, e.Name, e.Email, e.Tel, e.Joined)).ToList();
+        var dtos = items.Select(e => new EmployeeListItemDto(e.Id, e.Name, e.Email.Value, e.Tel, e.Joined)).ToList();
 
         _logger.LogInformation(
             "Query 완료, QueryName={QueryName}, Page={Page}, PageSize={PageSize}, TotalCount={TotalCount}, ReturnedCount={ReturnedCount}",
             nameof(GetEmployeeListQuery), page, pageSize, totalCount, dtos.Count);
-        return new GetEmployeeListResult(dtos, totalCount, page, pageSize);
+        return new GetEmployeeListResponse(dtos, totalCount, page, pageSize);
     }
 }

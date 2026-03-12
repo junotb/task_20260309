@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using task_20260309.Domain.Entities;
 using task_20260309.Domain.Repositories;
+using task_20260309.Domain.ValueObjects;
 
-namespace task_20260309.Infrastructure.Data;
+namespace task_20260309.Infrastructure.Persistence;
 
 /// <summary>
 /// IEmployeeRepository의 EF Core 구현체.
@@ -34,10 +35,18 @@ public class EmployeeRepository : IEmployeeRepository
             .FirstOrDefaultAsync(e => e.Name == name, ct);
     }
 
-    public async Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Employee>> GetAllByNameAsync(string name, CancellationToken ct = default)
     {
-        var key = email.Trim().ToLowerInvariant();
-        return await _context.Employees.AnyAsync(e => e.Email == key, ct);
+        return await _context.Employees
+            .AsNoTracking()
+            .Where(e => e.Name == name)
+            .OrderBy(e => e.Id)
+            .ToListAsync(ct);
+    }
+
+    public async Task<bool> ExistsByEmailAsync(Email email, CancellationToken ct = default)
+    {
+        return await _context.Employees.AnyAsync(e => e.Email == email, ct);
     }
 
     public void Add(Employee employee)
