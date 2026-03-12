@@ -1,3 +1,5 @@
+using System.Text;
+using Microsoft.OpenApi.Models;
 using task_20260309.Application.Employee;
 using task_20260309.Application.Employee.Commands;
 using task_20260309.Application.Employee.Queries;
@@ -41,11 +43,78 @@ public static class EmployeeEndpoints
             .WithName("ImportEmployees")
             .WithSummary("직원 일괄 추가")
             .WithDescription("""
-                multipart/form-data: file(CSV/JSON) 또는 rawData. 둘 다 시 병합·이메일 중복 제거.
+                multipart/form-data: file(CSV/JSON) 또는 rawData. 또는 body 직접: text/plain, text/csv, application/json. 둘 다 시 병합·이메일 중복 제거.
                 성공 201: 채널 전달 완료. message, imported, skipped, total, errors(있을 때). 실제 DB 저장은 비동기.
                 성공 200: file·rawData 둘 다 비었거나, 파싱 결과 유효 직원 0명. received=0 또는 imported=0.
                 실패 400: Content-Type 오류 / 파싱 실패(형식 오류) / 검증 실패(전체). errors에 index, email, errors 배열.
                 """)
+            .WithOpenApi(operation =>
+            {
+                operation.RequestBody = new OpenApiRequestBody
+                {
+                    Required = true,
+                    Description = "파일 업로드 또는 rawData 입력. 둘 다 입력 시 병합·이메일 중복 제거.",
+                    Content =
+                    {
+                        ["multipart/form-data"] = new OpenApiMediaType
+                        {
+                            Schema = new OpenApiSchema
+                            {
+                                Type = "object",
+                                Properties =
+                                {
+                                    ["file"] = new OpenApiSchema
+                                    {
+                                        Type = "string",
+                                        Format = "binary",
+                                        Description = "CSV 또는 JSON 파일 (.csv, .json)"
+                                    },
+                                    ["rawData"] = new OpenApiSchema
+                                    {
+                                        Type = "string",
+                                        Description = "CSV 또는 JSON 텍스트 (직접 입력)"
+                                    }
+                                }
+                            }
+                        },
+                        ["application/json"] = new OpenApiMediaType
+                        {
+                            Schema = new OpenApiSchema
+                            {
+                                Type = "array",
+                                Items = new OpenApiSchema
+                                {
+                                    Type = "object",
+                                    Properties =
+                                    {
+                                        ["name"] = new OpenApiSchema { Type = "string" },
+                                        ["email"] = new OpenApiSchema { Type = "string" },
+                                        ["tel"] = new OpenApiSchema { Type = "string" },
+                                        ["joined"] = new OpenApiSchema { Type = "string", Description = "yyyy-MM-dd" }
+                                    }
+                                }
+                            }
+                        },
+                        ["text/plain"] = new OpenApiMediaType
+                        {
+                            Schema = new OpenApiSchema
+                            {
+                                Type = "string",
+                                Description = "CSV 또는 JSON 텍스트"
+                            }
+                        },
+                        ["text/csv"] = new OpenApiMediaType
+                        {
+                            Schema = new OpenApiSchema
+                            {
+                                Type = "string",
+                                Description = "CSV 텍스트 (헤더 포함)"
+                            }
+                        }
+                    }
+                };
+                return operation;
+            })
             .Produces(201)
             .Produces(200)
             .Produces(400)
@@ -95,23 +164,43 @@ public static class EmployeeEndpoints
         return Results.Ok(new GetEmployeeByNameResponse(items));
     }
 
+    private const int MaxRawBodyBytes = 1024 * 1024; // 1MB (rawData form 필드와 동일)
+
+    private static readonly HashSet<string> RawBodyContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text/plain",
+        "text/csv",
+        "application/json"
+    };
+
     private static async Task<IResult> ImportEmployees(
         HttpContext context,
         AddEmployeesCommandHandler handler,
         CancellationToken ct)
     {
-        if (!context.Request.HasFormContentType)
+        AddEmployeesRequest request;
+        var contentType = context.Request.ContentType?.Split(';')[0].Trim();
+
+        if (context.Request.HasFormContentType)
         {
-            return Results.BadRequest(new { error = "Content-Type: multipart/form-data가 필요합니다. file 또는 rawData를 전달해 주세요." });
+            var (file, rawData) = await ReadImportFormAsync(context, ct);
+            Stream? fileStream = null;
+            if (file is not null && file.Length > 0)
+                fileStream = file.OpenReadStream();
+            request = new AddEmployeesRequest(fileStream, file?.FileName, rawData);
+        }
+        else if (contentType is not null && RawBodyContentTypes.Contains(contentType))
+        {
+            var rawData = await ReadRawBodyAsync(context, ct);
+            if (rawData is null)
+                return Results.BadRequest(new { error = "요청 본문이 너무 큽니다. (최대 1MB)" });
+            request = new AddEmployeesRequest(null, null, rawData);
+        }
+        else
+        {
+            return Results.BadRequest(new { error = "Content-Type: multipart/form-data 또는 text/plain, text/csv, application/json이 필요합니다." });
         }
 
-        var (file, rawData) = await ReadImportFormAsync(context, ct);
-
-        Stream? fileStream = null;
-        if (file is not null && file.Length > 0)
-            fileStream = file.OpenReadStream();
-
-        var request = new AddEmployeesRequest(fileStream, file?.FileName, rawData);
         var result = await handler.HandleAsync(request, ct);
 
         return result switch
@@ -142,5 +231,22 @@ public static class EmployeeEndpoints
         var file = form.Files["file"];
         var rawData = form["rawData"].FirstOrDefault();
         return (file, rawData);
+    }
+
+    private static async Task<string?> ReadRawBodyAsync(HttpContext context, CancellationToken ct)
+    {
+        var buffer = new byte[8192];
+        using var ms = new MemoryStream();
+        int total = 0;
+        int read;
+        while ((read = await context.Request.Body.ReadAsync(buffer, ct)) > 0)
+        {
+            total += read;
+            if (total > MaxRawBodyBytes)
+                return null;
+            ms.Write(buffer, 0, read);
+        }
+        ms.Position = 0;
+        return Encoding.UTF8.GetString(ms.ToArray());
     }
 }
