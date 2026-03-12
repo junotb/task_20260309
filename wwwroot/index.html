@@ -251,36 +251,93 @@
       lucide.createIcons();
     }
 
-    // Detail Modal
-    function openDetailModal(emp) {
-      const joined = emp.joined ? new Date(emp.joined).toLocaleDateString('ko-KR') : '-';
-      document.getElementById('detail-content').innerHTML = `
-        <div class="flex items-center gap-4 mb-6">
-          <div class="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">
-            ${emp.name ? emp.name.split(/\s+/).map((s) => s[0]).join('').slice(0, 2).toUpperCase() : '?'}
-          </div>
-          <div>
-            <h3 class="text-xl font-semibold text-slate-800">${emp.name || '-'}</h3>
-            <p class="text-slate-500">${emp.email || '-'}</p>
-          </div>
+    // Detail Modal - GET /api/employee/{name} 로 상세 조회
+    async function openDetailModal(emp) {
+      const modal = document.getElementById('detail-modal');
+      const contentEl = document.getElementById('detail-content');
+      const name = emp.name;
+      if (!name || typeof name !== 'string') {
+        showToast('직원 이름을 찾을 수 없습니다.', 'error');
+        return;
+      }
+
+      modal.classList.remove('hidden');
+      contentEl.innerHTML = `
+        <div class="flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent"></div>
+          <span class="ml-3 text-slate-500">로딩 중...</span>
         </div>
-        <dl class="space-y-3">
-          <div>
-            <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">이메일</dt>
-            <dd class="text-slate-700">${emp.email || '-'}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">전화번호</dt>
-            <dd class="text-slate-700">${emp.tel || '-'}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">등록일</dt>
-            <dd class="text-slate-700">${joined}</dd>
-          </div>
-        </dl>
       `;
-      document.getElementById('detail-modal').classList.remove('hidden');
-      lucide.createIcons();
+
+      try {
+        const res = await fetch(`${API_BASE}/${encodeURIComponent(name.trim())}`);
+        if (res.status === 404) {
+          contentEl.innerHTML = `
+            <div class="py-8 text-center text-slate-500">
+              <i data-lucide="user-x" class="w-12 h-12 mx-auto mb-3 opacity-40"></i>
+              <p>해당 직원을 찾을 수 없습니다.</p>
+            </div>
+          `;
+          lucide.createIcons();
+          return;
+        }
+        if (!res.ok) throw new Error('조회 실패');
+        const data = await res.json();
+        const items = data.items ?? [];
+
+        if (items.length === 0) {
+          contentEl.innerHTML = `
+            <div class="py-8 text-center text-slate-500">
+              <i data-lucide="user-x" class="w-12 h-12 mx-auto mb-3 opacity-40"></i>
+              <p>해당 직원을 찾을 수 없습니다.</p>
+            </div>
+          `;
+          lucide.createIcons();
+          return;
+        }
+
+        const renderEmployee = (e) => {
+          const joined = e.joined ? new Date(e.joined).toLocaleDateString('ko-KR') : '-';
+          const initials = e.name ? e.name.split(/\s+/).map((s) => s[0]).join('').slice(0, 2).toUpperCase() : '?';
+          return `
+            <div class="flex items-center gap-4 mb-6">
+              <div class="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">
+                ${initials}
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-slate-800">${e.name || '-'}</h3>
+                <p class="text-slate-500">${e.email || '-'}</p>
+              </div>
+            </div>
+            <dl class="space-y-3">
+              <div>
+                <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">이메일</dt>
+                <dd class="text-slate-700">${e.email || '-'}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">전화번호</dt>
+                <dd class="text-slate-700">${e.tel || '-'}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">등록일</dt>
+                <dd class="text-slate-700">${joined}</dd>
+              </div>
+            </dl>
+          `;
+        };
+
+        contentEl.innerHTML = renderEmployee(items[0]);
+        lucide.createIcons();
+      } catch (err) {
+        contentEl.innerHTML = `
+          <div class="py-8 text-center text-slate-500">
+            <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-3 opacity-40"></i>
+            <p>${err.message || '상세 정보를 불러오지 못했습니다.'}</p>
+          </div>
+        `;
+        lucide.createIcons();
+        showToast(err.message || '상세 정보를 불러오지 못했습니다.', 'error');
+      }
     }
 
     // Modal close handlers
