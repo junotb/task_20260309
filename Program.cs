@@ -62,6 +62,17 @@ builder.Services.AddHostedService<EmployeeImportBackgroundService>();
 // FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<EmployeeImportDtoValidator>();
 
+// 전역 예외 처리기 (.NET 8 IExceptionHandler) + ProblemDetails (UseExceptionHandler 요구사항)
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<task_20260309.Api.GlobalExceptionHandler>();
+
+// Form 요청 제한 (ReadFormAsync OOM/타임아웃 방지)
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+    options.ValueLengthLimit = 1024 * 1024;              // rawData 1MB
+});
+
 // 파서 (역할 분리, 확장자 기반 선택 가능)
 builder.Services.AddScoped<IEmployeeParser, CsvEmployeeParser>();
 builder.Services.AddScoped<IEmployeeParser, JsonEmployeeParser>();
@@ -84,6 +95,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
+app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();

@@ -141,11 +141,22 @@ public class AddEmployeesCommandHandler
                 {
                     throw new ParseException("rawData 형식을 인식할 수 없습니다. CSV 또는 JSON 배열을 사용해 주세요.", new InvalidOperationException("Unsupported format"), "Textarea", null);
                 }
-                var parsed = await parser.ParseFromStringAsync(request.RawData!, ct);
-                fromRaw.AddRange(parsed.Employees);
-                totalParsed += parsed.Employees.Count;
-                _logger.LogInformation("직원 추가 요청 파싱 완료, SourceType={SourceType}, ParsedCount={ParsedCount}, MergedTotal={MergedTotal}",
-                    "Textarea", parsed.Employees.Count, fromFile.Count + fromRaw.Count);
+                try
+                {
+                    var parsed = await parser.ParseFromStringAsync(request.RawData!, ct);
+                    fromRaw.AddRange(parsed.Employees);
+                    totalParsed += parsed.Employees.Count;
+                    _logger.LogInformation("직원 추가 요청 파싱 완료, SourceType={SourceType}, ParsedCount={ParsedCount}, MergedTotal={MergedTotal}",
+                        "Textarea", parsed.Employees.Count, fromFile.Count + fromRaw.Count);
+                }
+                catch (ParseException)
+                {
+                    throw; // 이미 ParseException이면 그대로 전달
+                }
+                catch (Exception ex)
+                {
+                    throw new ParseException("rawData 형식이 올바르지 않습니다. CSV 또는 JSON을 확인해 주세요.", ex, "Textarea", null);
+                }
             }
 
             var (merged, duplicateErrors) = EmployeeImportHelpers.MergeByEmail(fromFile.Concat(fromRaw));
